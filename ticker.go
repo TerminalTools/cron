@@ -17,6 +17,7 @@ type Ticker struct {
 	firstTrigger        bool             // 是否在启动定时前执行任务
 	offset              offset           // 偏移时间
 	now                 func() time.Time // 获取当前时间方法
+	timezoneOffset      int64            // 当前系统时区偏移数值
 	tickerLock          *sync.RWMutex
 }
 
@@ -43,6 +44,7 @@ func NewTicker(options *Options) (ticker *Ticker, newErr error) {
 
 	ticker.initThreshold()
 	ticker.initGuide()
+	ticker.initTimezoneOffset()
 	ticker.initTicker()
 	return ticker, nil
 }
@@ -96,6 +98,15 @@ func (self *Ticker) initInterval() {
 	}
 }
 
+// initTimezoneOffset 初始化时区偏移数值
+func (self *Ticker) initTimezoneOffset() {
+	var (
+		_, offset      = self.now().Local().Zone()
+		timezoneOffset = int64(offset) * int64(time.Second)
+	)
+	self.timezoneOffset = timezoneOffset
+}
+
 // initTicker 初始化定时器
 func (self *Ticker) initTicker() {
 	self.Ticker = time.NewTicker(self.interval)
@@ -109,7 +120,7 @@ func (self *Ticker) doCorrection() (trigger bool) {
 		nowNano = now.UnixNano()
 	)
 	var (
-		excessTime     = nowNano - int64(self.offset.Duration())
+		excessTime     = nowNano - int64(self.offset.Duration()) + self.timezoneOffset
 		correctionTime = excessTime % self.guide
 	)
 
